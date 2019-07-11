@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="node_modules/bootstrap-3.3.7-dist/css/bootstrap.min.css">
+    <script type="text/javascript" src="node_modules/jquery/dist/jquery.min.js"></script>
+    <script src="node_modules/bootstrap-3.3.7-dist/js/bootstrap.min.js"></script>
+    <style>
+        body {
+            background:beige;
+            padding: 0px 5px;
+        }
+    </style>
+    <script type="text/javascript">
+        //文档准备就绪就开始执行
+        $(document).ready(function () {
+            //获取iframe离顶部的高度和浏览器的高度，以设置iframe的高度
+            let top=$("#iframe01").offset().top;
+            let winHeight=document.documentElement.clientHeight;
+            $("#iframe01").attr("height",winHeight-top-10);//设置iframe的高度,为了让页面只有一个滚动条
+
+            //点击导航栏的时候的事件
+            $("li").click(function () {
+                $("li").each(function () {
+                    $(this).removeAttr("class");
+                });
+                $(this).attr("class", "active");// 鼠标点击时，将每个li元素变成active的
+                $("#iframe01").attr("height",winHeight-top-10);//点击重新设置iframe的高度
+                scrollTo(0,0);//回到顶部
+
+
+            });
+        })
+    </script>
+</head>
+
+<body>
+
+    <div id="div01">
+        <h1 align="center" id="h101">智能化监管平台</h1>
+        <!-- 导航栏 -->
+        <ul class="nav nav-tabs nav-justified">
+            <li class="active" id="li01"><a href="hh.html" target="iframe01">舆情监测</a></li>
+            <li id="li02"><a href="https://app.powerbi.com/view?r=eyJrIjoiOGZlZWVmODEtMTY4ZC00ODI5LWFhZWYtYWUxMjJhODkwODk5IiwidCI6ImMzZGNkZmUzLWIyY2EtNDBlYS1iZDgzLTFlNmI3MDRmNTEwOCIsImMiOjEwfQ%3D%3D" target="iframe01">机构画像</a></li>
+            <li id="li03"><a href="hh.html" target="iframe01">市场预测</a></li>
+            <li id="li04"><a href="counter_trade.html" target="iframe01">异常分析</a></li>
+        </ul>
+    </div>
+    <iframe width="100%"  frameborder="0" name="iframe01" scrolling="auto" id="iframe01"></iframe>
+   
+</body>
+
+
+</html>

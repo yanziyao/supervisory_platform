@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<title>异常交易</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="node_modules/bootstrap-3.3.7-dist/css/bootstrap.min.css">
+	<script type="text/javascript" src="node_modules/d3/dist/d3.min.js"></script>
+	<script type="text/javascript" src="node_modules/jquery/dist/jquery.min.js"></script>
+	<script src="node_modules/bootstrap-3.3.7-dist/js/bootstrap.min.js"></script>
+
+	<!-- <meta name="keywords" content="keyword1,keyword2,keyword3">
+    <meta name="description" content="this is my page">
+    <meta name="content-type" content="text/html; charset=GBK"> -->
+
+	<!--<link rel="stylesheet" type="text/css" href="./styles.css">-->
+
+	<style type="text/css">
+		#div01 {
+			padding: 10px;
+			border-style: solid;
+			border-color: darkturquoise;
+		}
+
+		#div02 {
+			padding: 10px;
+		}
+		#div03{
+			padding: 10px;
+		}
+	</style>
+</head>
+
+<body>
+	<div id="div01">
+		<label for="startTime">开始时间：</label><input id="startTime" type="datetime-local" value="2019-07-01T10:00" />
+		<label for="endTime">结束时间：</label><input id="endTime" type="datetime-local" value="2019-07-01T10:30" />
+		<button type="button" id="b01">对倒交易查询</button>
+	</div>
+	<div id="div02">
+		<svg id="svg01"></svg>
+	</div>
+	<div id="div03"></div>
+
+
+	<!-- <script>
+		let browerWindth = document.documentElement.clientWidth;//获取浏览器的宽
+		let browerHeight = document.documentElement.clientHeight;//获取浏览器的高
+		document.getElementById("div01").style.width = browerWindth + "px";//设置div01的高、宽和浏览器一样
+		document.getElementById("div01").style.height = browerHeight + "px";
+		// console.log(document.getElementById("div01").style.width);
+	</script> -->
+
+	<script>
+		//------------------------------------------------------------------用jQuery请求数据
+
+		//页面加载完以后再读取数据
+		$(document).ready(function () {
+			//点击button,触发请求
+			$("button").click(function () {
+				//设置变量
+				let requestData = { startTime: $("#startTime").val(), endTime: $("#endTime").val() }
+				let browerWindth = document.documentElement.clientWidth;//获取浏览器的宽
+				let browerHeight = document.documentElement.clientHeight;//获取浏览器的高
+				let nodes = [];
+				let org_links = [];//用来存放从json中获取的数据
+				let formData = [];//用来存放加入表格的数据
+				let k;
+				let group = {};//用来存放taker和maker的分类
+				let links = [];//用来存放org_links处理后的数据,该数据传入d3中
+				let radius = 20;//设置节点圆的半径
+				//发送请求
+				// $.ajax({
+				// 	type: "POST",
+				// 	url: "data2.json",
+				// 	data: requestData,    // 发送给后端的数据，ajax会自动转化为字符串
+				// 	contentType: 'application/json; charset=UTF-8',
+				// 	dataType: "json",    // 希望服务端返回json格式的数据
+				// 	success: function (d) {   // success是成功后的回调函数，d是返回的数据
+				// 		for (let i = 0; i < d.length; i++) {
+				// 			org_links.push({
+				// 				source: d[i].发起方机构,
+				// 				target: d[i].报价方机构,
+				// 				dir: d[i].基准货币交易方向,
+				// 				price: d[i].近端汇率,
+				// 				volume: d[i].近端折美元金额,
+				// 				loop: d[i].标识位
+				// 			});
+				// 		}
+				// 	},
+				// 	error: function (event, xhr,ajaxOptions) {//error是失败后的回调函数
+				// 		alert(ajaxOptions.url+":"+xhr.status+":"+xhr.statusText	);
+				// 	},
+				// 	async: false
+				// });
+
+
+				//清空之前div02和div03里的内容
+				$("#svg01").html("");
+				$("#table01").remove();
+
+				// 读取json文件
+				$.ajaxSettings.async = false;//------设置getJson为同步
+				$.getJSON("data2.json", function (d) {
+					// 将后端接收到的数据存入d3的org_links数组中
+					for (let i = 0; i < d.length; i++) {
+						org_links.push({
+							source: d[i].发起方机构,
+							target: d[i].报价方机构,
+							dir: d[i].基准货币交易方向,
+							price: d[i].近端汇率,
+							volume: d[i].近端折美元金额,
+							loop: d[i].标识位
+						});
+						formData.push({
+							source: d[i].发起方机构,
+							target: d[i].报价方机构,
+							dir: d[i].基准货币交易方向,
+							price: d[i].近端汇率,
+							volume: d[i].近端折美元金额,
+							loop: d[i].标识位
+						});
+					}
+				});
+
+				// console.log(formData);
+
+				//------------------------------------------------------------------画图
+				let svg = d3.select("svg")
+					.attr("width", browerWindth * 90 / 100)
+					.attr("height", browerHeight * 95 / 100);
+				let width = svg.attr("width");
+				let height = svg.attr("height");
+
+
+				//将json的字符串形式转成json对象
+				// let obj=eval("("+data+")");
+
+				//设定节点数据和连接数据
+				for (let i = 0; i < org_links.length; i++) {
+					//赋值给k,如果a<b，且方向为S，则k=a:b，美元流动方向为a-b;如果b>a，且方向为S，则k=b:a，让相同的taker,maker为一组
+					if (org_links[i].dir == "S/--") {
+						k = org_links[i].source + ":" + org_links[i].target;
+					}
+					else {
+						k = org_links[i].target + ":" + org_links[i].source;
+					};
+					//判断group中有没有该分组
+					if (!group.hasOwnProperty(k)) {
+						group[k] = 0;//分类不在group中，先加入group
+						links[i] = org_links[i];
+						let kPair = k.split(":");//将k的值分割
+						links[i].source = kPair[0];
+						links[i].target = kPair[1];//数据的source和target重新根据美元流向赋值
+						links[i].number = group[k] + 1;//增加一个属性number,用来对应两家机构间的交易笔数
+					}
+					else {
+						group[k] += 1;
+						links[i] = org_links[i];
+						let kPair = k.split(":");//将k的值分割
+						links[i].source = kPair[0];
+						links[i].target = kPair[1];//数据的source和target重新根据美元流向赋值
+						links[i].number = group[k] + 1;//增加一个属性number,用来对应两家机构间的交易笔数
+					}//如果分类在group中，则+1
+
+				}
+
+				// 这个forEach循环是先将所有成交明细数据的机构以及loop放入nodes数组
+				links.forEach(function (link) {
+					//is/it为标识，判断nodes数组中有没有link.source/link.target机构
+					let is = 0;
+					let it = 0;
+					for (let i = 0; i < nodes.length; i++) {
+						if ((nodes[i].name == link.source) && (link.loop !== 0)) {//nodes数组中有source，并且循环标记不为0
+							nodes[i].loop = link.loop;//则让该机构的loop等于最新成交明细的loop
+							is = 1;
+						} else if ((nodes[i].name == link.source) && (link.loop == 0)) {//nodes数组中有source，并且标识位为0							
+							is = 1;
+						} else if ((nodes[i].name == link.target) && (link.loop !== 0)) {//nodes数组中有target，并且标识位不为0		
+							nodes[i].loop = link.loop;
+							it = 1;
+						} else if ((nodes[i].name == link.target) && (link.loop == 0)) {//nodes数组中有target，并且标识位为0					
+							it = 1;
+						}
+					};
+					//判断标识为，如果为0，证明这笔成交明细的机构没有在nodes数组里，需要加到nodes里
+					if (is == 0) {
+						nodes.push({
+							name: link.source,
+							loop: link.loop
+						});
+					};
+					if (it == 0) {
+						nodes.push({
+							name: link.target,
+							loop: link.loop
+						});
+					};
+				});
+				// 这个forEach循环是将每笔成交明细的source和target指向nodes数组中的机构
+				links.forEach(function (link) {
+					for (let i = 0; i < nodes.length; i++) {
+						if (nodes[i].name == link.source) { link.source = nodes[i]; }
+						else if (nodes[i].name == link.target) { link.target = nodes[i]; };
+					}
+				});
+
+				//设置一个color的离散型颜色比例尺，为了让不同的节点呈现不同的颜色
+				var colorScale = d3.scaleOrdinal()
+					.domain([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+					.range(["#BEBEBE", "#FF5151", "#0080FF", "#CA8EFF", "#00E3E3",
+						"#00EC00", "#E1E100", "#6FB7B7", "#9999CC", "#C48888"]);
+
+				//新增容器，所有新增分组都在容器内
+				let container = svg.append("g")
+					.attr("transform", "translate(0,0)");
+
+				//-----------------------------------------------------------------创建力模拟器和四个力
+				let my_forceSimulation = d3.forceSimulation()
+					.force("link", d3.forceLink())
+					.force("charge", d3.forceManyBody())
+					.force("collison", d3.forceCollide())
+					.force("center", d3.forceCenter());
+				//传入数据
+				my_forceSimulation.nodes(nodes)
+					.on("tick", ticked);
+				//设置中心力的位置
+				my_forceSimulation.force("center")
+					.x(width / 2)
+					.y(height / 2);
+				//设置连接力的数据及长度
+				my_forceSimulation.force("link")
+					.links(links)//定义力的数据
+					.distance(200); //定义力的长度
+				//设置互斥力，让节点不能重叠
+				my_forceSimulation.force("charge")
+					.strength(-50);
+				//设置碰撞力，让节点不能重叠
+				my_forceSimulation.force("collison")
+					.radius(radius + 10);
+
+				// console.log(links);
+				// console.log(nodes);
+
+				//绘制箭头
+				let marker = container.append("g")
+					.selectAll("marker")
+					.data(links)
+					.enter()
+					.append("marker")
+					.attr("id", function (d) { return d.loop; })
+					.attr("markerUnits", "userSpaceOnUse")
+					.attr("viewBox", "0 -5 10 10")//箭头坐标系的区域
+					.attr("refX", 25)//箭头中心点,根据force("link").distance的大小来调整，使得箭头再圆环上
+					.attr("refY", -1)
+					.attr("markerWidth", 12)//标识的大小
+					.attr("markerHeight", 12)
+					.attr("orient", "auto")//绘制方向，可设定为：auto（自动确认方向）和 角度值
+					.attr("stroke-width", 2)//箭头宽度
+					.attr("fill", function (d) { return colorScale(d.loop); })
+					.append("path")
+					.attr("d", "M0,-5 L10,0 L0,5 L5,0 L0,-5");//在viewbox中绘制箭头的路径
+
+				//设置圆弧线
+				let g_carve = container.append("g")
+					.selectAll("path")
+					.data(links)
+					.enter()
+					.append("path")
+					.attr("marker-end", function (d) { return "url(#" + d.loop + ")"; });
+
+				//绘制节点和节点文本，作为一个分组，对于每一个节点和节点文字都分配一个分组
+				let g_node = container
+					.selectAll(".circleText")
+					.data(nodes)
+					.enter()
+					.append("g")
+					// })//绘制每个节点分组的位置
+					// 使用d3的call()函数使其在每个节点创建完后调用d3.drag()相关拖拽的事件监听，分别对拖拽开始，拖拽中，拖拽结束做监听。
+					.call(d3.drag()//调用拖拽函数
+						.on("start", dragStarted)
+						.on("drag", dragged)
+						.on("end", dragEnded));
+				// .call(d3.zoom()//调用缩放函数
+				// 	.scaleExtent([1, 10])//设置缩放大小
+				// 	.on("zoom", zoomed));
+				//添加圆形节点
+				g_node.append("circle")
+					.attr("r", radius)
+					.attr("fill", function (d) {
+						return colorScale(d.loop);
+					});
+				//添加节点文字
+				g_node.append("text")
+					.attr("x", 0 - radius)
+					.attr("y", radius / 3)
+					.text(function (d) { return d.name; });
+
+				//--------------------------------------------------------------------------以下都是具名函数内容
+				//拖拽开始绑定的回调函数参数为node节点，首先判断事件是否活动并设置动画的alpha值，alpa值决定拖动的速度[0,1]。
+				//这里fx为当前节点的固定坐标，x为节点的原始坐标。
+				function dragStarted(d) {
+					if (!d3.event.active) { my_forceSimulation.alphaTarget(0.5).restart(); }
+					d.fx = d.x;
+					d.fy = d.y;
+				}
+				//拖拽中的回调函数，参数为node节点，这里不断的更新节点的固定坐标根据鼠标事件的坐标
+				function dragged(d) {
+					d.fx = d3.event.x;
+					d.fy = d3.event.y;
+				}
+				//拖拽结束回调函数，参数为node节点，判断事件状态动画系数设置为0结束动画，并设置固定坐标都为null。
+				function dragEnded(d) {
+					if (!d3.event.active) { my_forceSimulation.alphaTarget(0); }
+					d.fx = null;
+					d.fy = null;
+				}
+
+				//缩放函数
+				function zoomed() {
+					g_node.attr("transform", d3.event.transform);
+				}
+
+				//ticked函数，根据每个数据更新位置
+				function ticked() {
+					// 更新圆弧的Path路径
+					g_carve.attr("fill", "none")//让圆弧里面没有填充，不会变成椭圆
+						.attr("stroke", function (d) { return colorScale(d.loop); })//填充为none时，一定要设定stroke的颜色
+						.attr("stroke-width", function (d) {
+							if (d.volume <= 1000000) { return 0.5; }//根据交易量的大小分成5个档次，不同的档次线段宽度不同
+							else if (d.volume <= 5000000) { return 1; }
+							else if (d.volume <= 10000000) { return 2; }
+							else if (d.volume <= 30000000) { return 3; }
+							else { return 4; };
+						})
+						.attr("d", function (d) {
+							//调用validXY函数，将原始坐标转成有效坐标
+							let val_source_x = validXY(d.source.x, "x");
+							let val_source_y = validXY(d.source.y, "y");
+							let val_target_x = validXY(d.target.x, "x");
+							let val_target_y = validXY(d.target.y, "y");
+							let dx = val_target_x - val_source_x;
+							let dy = val_target_y - val_source_y;
+							let dr = Math.sqrt(dx * dx + dy * dy);
+							//A属性后面的参数:前两个为长半轴和短半轴,值越小越向外;第三个默认为0;
+							// 第四个表示弧度大于180度则为1，小于则为0,这在绘制连接到相同节点的连接线时用到；
+							// 第五个参数，0表示正角，1表示负角，用来控制弧形凹凸的方向。
+							// 结合编号的正负情况来控制该条连接线的凹凸方向，从而达到连接线对称的效果						
+							return "M" + val_source_x + "," + val_source_y + " A" + dr * d.number * 2 / 3 + "," + dr * d.number * 2 / 3 + ",0,0,1," + val_target_x + "," + val_target_y;
+						});
+					// 更新g_node分组的返回位置					
+					g_node.attr("transform", function (d) {
+						//调用validXY函数，将原始坐标转成有效坐标
+						let circleX = validXY(d.x, "x");
+						let circleY = validXY(d.y, "y");
+						return "translate(" + circleX + "," + circleY + ")";
+					});
+				}
+
+				//有效节点函数，使得节点坐标在svg内部,函数的第一个参数为原始坐标值，第二个参数为是x还是y轴
+				function validXY(org_val, axis) {
+					//这里的radius为之前定义的节点圆的半径
+					if (axis == "x") {
+						return Math.max(radius, Math.min(width - radius, org_val));
+					} else {
+						return Math.max(radius, Math.min(height - radius, org_val));
+					};
+				}
+
+
+				// ------------------------------------------------添加表格，结构如下
+
+				// 	<table class="table table-striped">
+				//   <caption>条纹表格布局</caption>
+				//   <thead>
+				//     <tr>
+				//       <th></th>
+				//  	...
+				//     </tr>
+				//   </thead>
+				//   <tbody>
+				//     <tr>
+				//       <td></td>
+				//		...
+				//     </tr>
+				//     <tr>
+				//       <td>Sachin</td>
+				//      ...
+				//     </tr>
+				//      ...
+				//   </tbody>
+				// </table>
+
+				$("#div03").append("<table class='table table-striped' id='table01'></table>");
+				$("#table01").append("<thead><tr><th>发起方机构</th><th>报价方机构</th><th>交易方向</th><th>交易价格</th><th>交易量</th><th>对倒环标识</th></tr></thead><tbody id='tbody01'></tbody>");
+				formData.forEach(function (item) {
+					if (item.loop !== 0) {
+						let tr = "<td>" + item.source + "</td><td>" + item.target + "</td><td>" + item.dir + "</td><td>" + item.price + "</td><td>" + item.volume + "</td><td>" + item.loop + "</td>";
+						$("#tbody01").append("<tr>" + tr + "</tr>");
+					}
+				});
+			});
+		});
+	</script>
+
+</body>
+
+</html>
